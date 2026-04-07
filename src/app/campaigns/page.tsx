@@ -44,6 +44,7 @@ export default async function CampaignsPage() {
     agentLogs: logsByCampaign[c.id] ?? [],
     currentStep: c.currentStep ?? null,
     progress: c.progress,
+    apifyResearch: c.apifyResearch,
   }))
 
   return <CampaignsClient campaigns={data} />

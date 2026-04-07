@@ -1,3 +1,7 @@
+import { db } from '@/lib/db'
+import { apifyJobs } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
+
 const APIFY_TOKEN = process.env.APIFY_API_TOKEN!
 const APIFY_BASE = 'https://api.apify.com/v2'
 
@@ -113,6 +117,52 @@ export async function runCampaignResearch(params: {
   })
 
   return jobs
+}
+
+// ── Poll and save job results for a campaign ─────────────────────────────────
+
+export async function pollAndSaveJobResults(campaignId: string): Promise<number> {
+  const runningJobs = await db
+    .select()
+    .from(apifyJobs)
+    .where(and(eq(apifyJobs.campaignId, campaignId), eq(apifyJobs.status, 'running')))
+
+  let updated = 0
+
+  for (const job of runningJobs) {
+    if (!job.runId) continue
+
+    const res = await fetch(`${APIFY_BASE}/actor-runs/${job.runId}?token=${APIFY_TOKEN}`)
+    if (!res.ok) continue
+
+    const data = await res.json()
+    const runStatus: string = data?.data?.status
+
+    if (runStatus === 'SUCCEEDED') {
+      const items = await getRunResults(job.runId)
+      await db
+        .update(apifyJobs)
+        .set({
+          status: 'done',
+          result: JSON.stringify(items),
+          completedAt: new Date(),
+        })
+        .where(eq(apifyJobs.id, job.id))
+      updated++
+    } else if (runStatus === 'FAILED' || runStatus === 'ABORTED') {
+      await db
+        .update(apifyJobs)
+        .set({
+          status: 'failed',
+          completedAt: new Date(),
+        })
+        .where(eq(apifyJobs.id, job.id))
+      updated++
+    }
+    // still running — leave as is
+  }
+
+  return updated
 }
 
 export { waitForRun, getRunResults }

@@ -122,6 +122,7 @@ export const mockCampaigns: Campaign[] = [
     agentLogs: c1Logs,
     currentStep: null,
     progress: 100,
+    apifyResearch: true,
   },
   {
     id: 'c2',
@@ -136,6 +137,7 @@ export const mockCampaigns: Campaign[] = [
     agentLogs: c2Logs,
     currentStep: 'reviewer',
     progress: 60,
+    apifyResearch: true,
   },
   {
     id: 'c3',
@@ -149,6 +151,7 @@ export const mockCampaigns: Campaign[] = [
     agentLogs: c3Logs,
     currentStep: 'planner',
     progress: 15,
+    apifyResearch: true,
   },
   {
     id: 'c4',
@@ -162,6 +165,7 @@ export const mockCampaigns: Campaign[] = [
     agentLogs: [],
     currentStep: null,
     progress: 0,
+    apifyResearch: false,
   },
 ]
 

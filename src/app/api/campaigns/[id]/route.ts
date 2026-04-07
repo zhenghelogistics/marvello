@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { campaigns, agentLogs } from '@/lib/db/schema'
+import { campaigns, agentLogs, apifyJobs } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -8,7 +8,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id))
   if (!campaign) return Response.json({ error: 'Not found' }, { status: 404 })
 
-  const logs = await db.select().from(agentLogs).where(eq(agentLogs.campaignId, id))
+  const [logs, jobs] = await Promise.all([
+    db.select().from(agentLogs).where(eq(agentLogs.campaignId, id)),
+    db.select().from(apifyJobs).where(eq(apifyJobs.campaignId, id)),
+  ])
 
   return Response.json({
     ...campaign,
@@ -19,6 +22,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       message: l.message,
       timestamp: l.createdAt.toISOString(),
       output: l.output ?? undefined,
+    })),
+    apifyJobs: jobs.map(j => ({
+      id: j.id,
+      type: j.type,
+      status: j.status,
+      query: j.query,
+      result: j.result ?? undefined,
+      createdAt: j.createdAt.toISOString(),
+      completedAt: j.completedAt?.toISOString() ?? undefined,
     })),
   })
 }

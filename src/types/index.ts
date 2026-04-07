@@ -40,6 +40,8 @@ export interface Campaign {
   agentLogs: AgentLog[]
   currentStep: AgentRole | null
   progress: number
+  apifyResearch: boolean
+  apifyJobs?: ApifyJob[]
 }
 
 export interface AgentLog {

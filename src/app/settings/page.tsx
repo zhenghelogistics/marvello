@@ -5,9 +5,10 @@ import { PageHeader } from '@/components/page-header'
 import { PlatformIcon } from '@/components/ui-custom/platform-icon'
 import { mockAccounts } from '@/lib/mock-data'
 import { formatRelativeTime, platformLabel, cn } from '@/lib/utils'
+import { savePlatformCredential } from '@/app/actions/settings'
 import {
   Check, Eye, EyeOff, RefreshCw, AlertCircle,
-  Zap, Bot, Key, Bell, Shield, Plug
+  Bot, Key, Bell, Shield, Plug, RefreshCcw
 } from 'lucide-react'
 
 const TABS = [
@@ -27,15 +28,49 @@ function SectionHeader({ title, description }: { title: string; description?: st
   )
 }
 
-function ApiKeyInput({ label, description, placeholder }: { label: string; description: string; placeholder: string }) {
-  const [show, setShow] = useState(false)
-  const [value, setValue] = useState('')
-  const [saved, setSaved] = useState(false)
+type PlatformKey = 'linkedin' | 'instagram' | 'facebook'
 
-  const handleSave = () => {
-    if (!value.trim()) return
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+interface ApiKeyInputProps {
+  label: string
+  description: string
+  placeholder: string
+  platform?: PlatformKey
+  extraFields?: { name: 'pageId' | 'orgId'; placeholder: string; label: string }
+}
+
+function ApiKeyInput({ label, description, placeholder, platform, extraFields }: ApiKeyInputProps) {
+  const [show, setShow] = useState(false)
+  const [token, setToken] = useState('')
+  const [extraValue, setExtraValue] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSave = async () => {
+    if (!token.trim()) return
+    setSaving(true)
+    setError(null)
+
+    if (platform) {
+      const data: { accessToken: string; pageId?: string; orgId?: string } = { accessToken: token }
+      if (extraFields?.name === 'pageId') data.pageId = extraValue
+      if (extraFields?.name === 'orgId') data.orgId = extraValue
+
+      const result = await savePlatformCredential(platform, data)
+      setSaving(false)
+
+      if (result.success) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      } else {
+        setError(result.error ?? 'Failed to save')
+      }
+    } else {
+      // Non-platform keys (Anthropic, Apify) — local only for now
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
   }
 
   return (
@@ -46,34 +81,47 @@ function ApiKeyInput({ label, description, placeholder }: { label: string; descr
           <p className="text-xs text-white/35 mt-0.5">{description}</p>
         </div>
       </div>
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <input
-            type={show ? 'text' : 'password'}
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            placeholder={placeholder}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 pr-9 text-xs text-white placeholder-white/20 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 transition-all font-mono"
-          />
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type={show ? 'text' : 'password'}
+              value={token}
+              onChange={e => setToken(e.target.value)}
+              placeholder={placeholder}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 pr-9 text-xs text-white placeholder-white/20 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 transition-all font-mono"
+            />
+            <button
+              onClick={() => setShow(s => !s)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+              aria-label={show ? 'Hide key' : 'Show key'}
+            >
+              {show ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
+          </div>
           <button
-            onClick={() => setShow(s => !s)}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
-            aria-label={show ? 'Hide key' : 'Show key'}
+            onClick={handleSave}
+            disabled={saving}
+            className={cn(
+              'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all cursor-pointer disabled:opacity-60',
+              saved
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : 'bg-violet-600 text-white hover:bg-violet-500'
+            )}
           >
-            {show ? <EyeOff size={13} /> : <Eye size={13} />}
+            {saving ? 'Saving…' : saved ? <><Check size={12} /> Saved</> : 'Save'}
           </button>
         </div>
-        <button
-          onClick={handleSave}
-          className={cn(
-            'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all cursor-pointer',
-            saved
-              ? 'bg-emerald-500/20 text-emerald-400'
-              : 'bg-violet-600 text-white hover:bg-violet-500'
-          )}
-        >
-          {saved ? <><Check size={12} /> Saved</> : 'Save'}
-        </button>
+        {extraFields && (
+          <input
+            type="text"
+            value={extraValue}
+            onChange={e => setExtraValue(e.target.value)}
+            placeholder={extraFields.placeholder}
+            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 transition-all font-mono"
+          />
+        )}
+        {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
     </div>
   )
@@ -108,12 +156,59 @@ function ToggleSetting({ label, description, defaultChecked = false }: { label: 
 }
 
 function AccountsTab() {
+  const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<{ synced: string[]; errors: { platform: string; error: string }[] } | null>(null)
+
+  const handleSyncAnalytics = async () => {
+    setSyncing(true)
+    setSyncStatus(null)
+    try {
+      const res = await fetch('/api/analytics/sync', { method: 'POST' })
+      const json = await res.json() as { synced: string[]; errors: { platform: string; error: string }[] }
+      setSyncStatus(json)
+    } catch {
+      setSyncStatus({ synced: [], errors: [{ platform: 'all', error: 'Network error' }] })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <SectionHeader
-        title="Connected Social Accounts"
-        description="Connect your social media accounts to enable posting and analytics"
-      />
+      <div className="flex items-start justify-between">
+        <SectionHeader
+          title="Connected Social Accounts"
+          description="Connect your social media accounts to enable posting and analytics"
+        />
+        <button
+          onClick={handleSyncAnalytics}
+          disabled={syncing}
+          className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/50 hover:bg-white/[0.06] transition-colors cursor-pointer disabled:opacity-60 shrink-0"
+        >
+          <RefreshCcw size={12} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing…' : 'Sync Analytics'}
+        </button>
+      </div>
+
+      {syncStatus && (
+        <div className={cn(
+          'rounded-xl border p-3 text-xs',
+          syncStatus.errors.length > 0 && syncStatus.synced.length === 0
+            ? 'border-red-500/20 bg-red-500/[0.05] text-red-400'
+            : 'border-emerald-500/20 bg-emerald-500/[0.05] text-emerald-400'
+        )}>
+          {syncStatus.synced.length > 0 && (
+            <p>Synced: {syncStatus.synced.join(', ')}</p>
+          )}
+          {syncStatus.synced.length === 0 && syncStatus.errors.length === 0 && (
+            <p className="text-white/40">No platforms with credentials configured. Add API keys in the API Keys tab.</p>
+          )}
+          {syncStatus.errors.map((e, i) => (
+            <p key={i} className="text-red-400">{e.platform}: {e.error}</p>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-3">
         {mockAccounts.map(account => (
           <div
@@ -186,19 +281,25 @@ function ApiKeysTab() {
           placeholder="apify_api_..."
         />
         <ApiKeyInput
-          label="LinkedIn API Key"
-          description="Required for automated posting to LinkedIn"
-          placeholder="linkedin_..."
+          label="LinkedIn Access Token"
+          description="Required for LinkedIn analytics and posting. Also enter your Organisation ID below."
+          placeholder="AQX..."
+          platform="linkedin"
+          extraFields={{ name: 'orgId', placeholder: 'Organisation ID (e.g. 12345678)', label: 'Org ID' }}
         />
         <ApiKeyInput
           label="Instagram Graph API"
-          description="Required for posting to Instagram via Meta Business"
+          description="Required for Instagram analytics via Meta Business. Also enter your IG User ID."
           placeholder="EAAG..."
+          platform="instagram"
+          extraFields={{ name: 'pageId', placeholder: 'Instagram User ID (numeric)', label: 'IG User ID' }}
         />
         <ApiKeyInput
           label="Facebook Graph API"
-          description="Required for posting to Facebook Pages"
+          description="Required for Facebook Page analytics. Also enter your Page ID."
           placeholder="EAAG..."
+          platform="facebook"
+          extraFields={{ name: 'pageId', placeholder: 'Facebook Page ID (numeric)', label: 'Page ID' }}
         />
       </div>
 

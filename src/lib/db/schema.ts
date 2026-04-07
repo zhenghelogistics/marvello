@@ -65,6 +65,31 @@ export const posts = pgTable('posts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ── Analytics Snapshots ───────────────────────────────────────────────────────
+
+export const analyticsSnapshots = pgTable('analytics_snapshots', {
+  id: text('id').primaryKey(),
+  platform: platformEnum('platform').notNull(),
+  period: text('period').notNull().default('30d'),
+  impressions: integer('impressions').notNull().default(0),
+  reach: integer('reach').notNull().default(0),
+  engagement: real('engagement').notNull().default(0),
+  followers: integer('followers').notNull().default(0),
+  followersGrowth: real('followers_growth').notNull().default(0),
+  postsCount: integer('posts_count').notNull().default(0),
+  syncedAt: timestamp('synced_at').notNull().defaultNow(),
+})
+
+// ── Platform Credentials ──────────────────────────────────────────────────────
+
+export const platformCredentials = pgTable('platform_credentials', {
+  platform: platformEnum('platform').primaryKey(),
+  accessToken: text('access_token'),
+  pageId: text('page_id'),
+  orgId: text('org_id'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ── Apify Jobs ────────────────────────────────────────────────────────────────
 
 export const apifyJobs = pgTable('apify_jobs', {
@@ -72,6 +97,7 @@ export const apifyJobs = pgTable('apify_jobs', {
   campaignId: text('campaign_id').references(() => campaigns.id, { onDelete: 'cascade' }),
   type: apifyJobTypeEnum('type').notNull(),
   status: apifyJobStatusEnum('status').notNull().default('queued'),
+  runId: text('run_id'),
   query: text('query').notNull(),
   result: text('result'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

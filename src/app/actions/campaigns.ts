@@ -48,6 +48,7 @@ export async function createCampaign(input: CreateCampaignInput) {
           campaignId: id,
           type: job.type,
           status: 'running' as const,
+          runId: job.runId,
           query: job.query,
         }))
       )

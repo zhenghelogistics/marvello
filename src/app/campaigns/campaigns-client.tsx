@@ -14,6 +14,7 @@ import {
   Plus, ChevronDown, ChevronRight, Bot, Check,
   AlertCircle, Zap, Play, Pause, RotateCcw, Loader2
 } from 'lucide-react'
+import { ResearchPanel } from '@/components/ui-custom/research-panel'
 import type { Campaign, AgentLog, AgentRole } from '@/types'
 
 const agentSteps: AgentRole[] = ['planner', 'writer', 'reviewer', 'publisher', 'analyst']
@@ -152,7 +153,7 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
 
       {expanded && (
         <div className="border-t border-white/5 px-5 pb-5 pt-4 animate-slide-in">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className={cn('grid grid-cols-1 gap-6', campaign.apifyResearch ? 'lg:grid-cols-3' : 'lg:grid-cols-2')}>
             <div>
               <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/25">Agent Workflow</p>
               <AgentTimeline logs={campaign.agentLogs} currentStep={campaign.currentStep} />
@@ -197,6 +198,11 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
                 )}
               </div>
             </div>
+            {campaign.apifyResearch && (
+              <div>
+                <ResearchPanel campaignId={campaign.id} />
+              </div>
+            )}
           </div>
         </div>
       )}
