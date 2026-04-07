@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+
+export const maxDuration = 300
 import { db } from '@/lib/db'
 import { analyticsSnapshots } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'

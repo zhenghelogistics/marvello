@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { runAgentPipeline } from '@/lib/agents/pipeline'
 
+export const maxDuration = 300 // 5 min — requires Vercel Pro; Hobby capped at 60s
+
 export async function POST(request: NextRequest) {
   const { campaignId } = await request.json()
   if (!campaignId) return Response.json({ error: 'campaignId required' }, { status: 400 })
