@@ -12,6 +12,12 @@ export const workspace = {
     stage: 'early' as const,
   },
 
+  profiles: {
+    linkedin: 'https://www.linkedin.com/company/zhenghe-logistics-pte-ltd',
+    instagram: 'zhenghe_logistics',
+    facebook: 'https://www.facebook.com/zhlSG',
+  },
+
   services: [
     { id: 'sea', label: 'Sea Freight', detail: 'FCL & LCL ocean shipping', icon: '🚢' },
     { id: 'air', label: 'Air Freight', detail: 'Express and standard air cargo', icon: '✈️' },

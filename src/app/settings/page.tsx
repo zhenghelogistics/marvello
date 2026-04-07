@@ -158,6 +158,8 @@ function ToggleSetting({ label, description, defaultChecked = false }: { label: 
 function AccountsTab() {
   const [syncing, setSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<{ synced: string[]; errors: { platform: string; error: string }[] } | null>(null)
+  const [scrapingProfiles, setScrapingProfiles] = useState(false)
+  const [scrapeResult, setScrapeResult] = useState<{ synced?: string[]; error?: string } | null>(null)
 
   const handleSyncAnalytics = async () => {
     setSyncing(true)
@@ -173,22 +175,66 @@ function AccountsTab() {
     }
   }
 
+  const handleScrapeProfiles = async () => {
+    setScrapingProfiles(true)
+    setScrapeResult(null)
+    try {
+      const res = await fetch('/api/apify/sync-profiles', { method: 'POST' })
+      const json = await res.json() as { synced?: string[]; error?: string }
+      setScrapeResult(json)
+    } catch {
+      setScrapeResult({ error: 'Network error' })
+    } finally {
+      setScrapingProfiles(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <SectionHeader
           title="Connected Social Accounts"
           description="Connect your social media accounts to enable posting and analytics"
         />
-        <button
-          onClick={handleSyncAnalytics}
-          disabled={syncing}
-          className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/50 hover:bg-white/[0.06] transition-colors cursor-pointer disabled:opacity-60 shrink-0"
-        >
-          <RefreshCcw size={12} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Syncing…' : 'Sync Analytics'}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleScrapeProfiles}
+            disabled={scrapingProfiles}
+            className="flex items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/[0.08] px-3 py-2 text-xs font-medium text-violet-400 hover:bg-violet-500/[0.14] transition-colors cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw size={12} className={scrapingProfiles ? 'animate-spin' : ''} />
+            {scrapingProfiles ? 'Scraping profiles…' : 'Sync My Profiles'}
+          </button>
+          <button
+            onClick={handleSyncAnalytics}
+            disabled={syncing}
+            className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/50 hover:bg-white/[0.06] transition-colors cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCcw size={12} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync Analytics'}
+          </button>
+        </div>
       </div>
+
+      {scrapingProfiles && (
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05] p-3 text-xs text-violet-300">
+          Scraping LinkedIn, Instagram & Facebook via Apify — this takes 1–2 minutes…
+        </div>
+      )}
+
+      {scrapeResult && (
+        <div className={cn(
+          'rounded-xl border p-3 text-xs',
+          scrapeResult.error
+            ? 'border-red-500/20 bg-red-500/[0.05] text-red-400'
+            : 'border-emerald-500/20 bg-emerald-500/[0.05] text-emerald-400'
+        )}>
+          {scrapeResult.error
+            ? `Profile scrape failed: ${scrapeResult.error}`
+            : `Profile data synced: ${scrapeResult.synced?.join(', ')} — Analytics page updated.`
+          }
+        </div>
+      )}
 
       {syncStatus && (
         <div className={cn(
