@@ -15,7 +15,6 @@ export async function POST() {
     // Save as apifyJobs so we can poll them later
     await db.delete(apifyJobs).where(and(eq(apifyJobs.type, 'profile-scrape'), eq(apifyJobs.status, 'running')))
     await db.insert(apifyJobs).values([
-      { id: crypto.randomUUID(), type: 'profile-scrape', status: 'running', runId: runIds.linkedin, query: 'linkedin', campaignId: null },
       { id: crypto.randomUUID(), type: 'profile-scrape', status: 'running', runId: runIds.instagram, query: 'instagram', campaignId: null },
       { id: crypto.randomUUID(), type: 'profile-scrape', status: 'running', runId: runIds.facebook, query: 'facebook', campaignId: null },
     ])

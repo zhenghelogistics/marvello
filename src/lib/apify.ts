@@ -171,16 +171,14 @@ export async function pollAndSaveJobResults(campaignId: string): Promise<number>
 
 export async function scrapeOwnProfiles() {
   const { workspace } = await import('@/lib/workspace')
-  const { linkedin, instagram, facebook } = workspace.profiles
+  const { instagram, facebook } = workspace.profiles
 
-  const [linkedinRun, instagramRun, facebookRun] = await Promise.all([
-    runLinkedInScrape([linkedin]),
+  const [instagramRun, facebookRun] = await Promise.all([
     runInstagramScrape([instagram]),
     runFacebookScrape([facebook]),
   ])
 
   return {
-    linkedin: linkedinRun.runId,
     instagram: instagramRun.runId,
     facebook: facebookRun.runId,
   }
