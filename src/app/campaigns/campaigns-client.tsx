@@ -12,10 +12,11 @@ import {
 } from '@/lib/utils'
 import {
   Plus, ChevronDown, ChevronRight, Bot, Check,
-  AlertCircle, Zap, Play, Pause, RotateCcw, Loader2
+  AlertCircle, Zap, Play, Pause, RotateCcw, Loader2,
+  FileText, Copy
 } from 'lucide-react'
 import { ResearchPanel } from '@/components/ui-custom/research-panel'
-import type { Campaign, AgentLog, AgentRole } from '@/types'
+import type { Campaign, AgentLog, AgentRole, Post } from '@/types'
 
 const agentSteps: AgentRole[] = ['planner', 'writer', 'reviewer', 'publisher', 'analyst']
 
@@ -85,12 +86,126 @@ function AgentTimeline({ logs, currentStep }: { logs: AgentLog[]; currentStep: A
   )
 }
 
+function PostCard({ post }: { post: Post }) {
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const isLong = post.content.length > 300
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    await navigator.clipboard.writeText(post.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="rounded-xl border border-white/5 bg-white/[0.02] overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+        <PlatformIcon platform={post.platform} size={14} />
+        <span className="text-xs font-semibold text-white flex-1 truncate">{post.title}</span>
+        <span className={cn(
+          'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+          post.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
+          post.status === 'scheduled' ? 'bg-cyan-500/15 text-cyan-400' :
+          post.status === 'failed' ? 'bg-red-500/15 text-red-400' :
+          'bg-white/5 text-white/35'
+        )}>
+          {post.status}
+        </span>
+        {post.scheduledAt && (
+          <span className="shrink-0 text-[10px] text-white/25">{new Date(post.scheduledAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}</span>
+        )}
+        <button
+          onClick={handleCopy}
+          className="shrink-0 rounded-md border border-white/5 bg-white/[0.03] p-1.5 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+          title="Copy content"
+        >
+          {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+        </button>
+      </div>
+      <div className="px-4 py-3">
+        <p className={cn('text-xs text-white/60 leading-relaxed whitespace-pre-wrap', !expanded && isLong && 'line-clamp-4')}>
+          {post.content}
+        </p>
+        {isLong && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="mt-2 text-[11px] text-violet-400/70 hover:text-violet-400 transition-colors cursor-pointer"
+          >
+            {expanded ? 'Show less ↑' : 'Read more ↓'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PostsView({ campaignId, postsCount }: { campaignId: string; postsCount: number }) {
+  const [posts, setPosts] = useState<Post[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (postsCount === 0) return
+    setLoading(true)
+    fetch(`/api/campaigns/${campaignId}`)
+      .then(r => r.json())
+      .then(data => {
+        setPosts((data.posts ?? []) as Post[])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [campaignId, postsCount])
+
+  if (postsCount === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <FileText size={24} className="text-white/15 mb-3" />
+        <p className="text-sm text-white/30">No posts yet</p>
+        <p className="text-xs text-white/20 mt-1">Posts will appear here once the Writer agent finishes.</p>
+      </div>
+    )
+  }
+
+  if (loading || posts === null) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={18} className="text-violet-400 animate-spin" />
+      </div>
+    )
+  }
+
+  const byPlatform = posts.reduce<Record<string, Post[]>>((acc, p) => {
+    if (!acc[p.platform]) acc[p.platform] = []
+    acc[p.platform].push(p)
+    return acc
+  }, {})
+
+  return (
+    <div className="space-y-6">
+      {Object.entries(byPlatform).map(([platform, platformPosts]) => (
+        <div key={platform}>
+          <div className="flex items-center gap-2 mb-3">
+            <PlatformIcon platform={platform as Post['platform']} size={14} />
+            <span className="text-xs font-semibold text-white/60 capitalize">{platform}</span>
+            <span className="text-[10px] text-white/25 font-mono">{platformPosts.length} post{platformPosts.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="space-y-2">
+            {platformPosts.map(p => <PostCard key={p.id} post={p} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type CampaignTab = 'posts' | 'workflow' | 'research'
+
 function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
   const [expanded, setExpanded] = useState(false)
+  const [tab, setTab] = useState<CampaignTab>('posts')
   const [campaign, setCampaign] = useState(initial)
   const isRunning = campaign.currentStep !== null
 
-  // Poll for live updates while agents are running
   const poll = useCallback(async () => {
     const res = await fetch(`/api/campaigns/${campaign.id}`)
     if (!res.ok) return
@@ -100,7 +215,7 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
       platforms: data.platforms as Campaign['platforms'],
       createdAt: data.createdAt,
     })
-    return data.currentStep === null // done when currentStep is null
+    return data.currentStep === null
   }, [campaign.id])
 
   useEffect(() => {
@@ -113,6 +228,12 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
   }, [isRunning, poll])
 
   const color = campaignStatusColor[campaign.status]
+
+  const tabs: { id: CampaignTab; label: string; show: boolean }[] = [
+    { id: 'posts', label: `Posts${campaign.postsCount > 0 ? ` (${campaign.postsCount})` : ''}`, show: true },
+    { id: 'workflow', label: 'Workflow', show: true },
+    { id: 'research', label: 'Research', show: campaign.apifyResearch },
+  ]
 
   return (
     <div className="rounded-xl border border-white/5 bg-white/[0.02] overflow-hidden transition-all hover:border-white/10">
@@ -152,56 +273,81 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
       </button>
 
       {expanded && (
-        <div className="border-t border-white/5 px-5 pb-5 pt-4 animate-slide-in">
-          <div className={cn('grid grid-cols-1 gap-6', campaign.apifyResearch ? 'lg:grid-cols-3' : 'lg:grid-cols-2')}>
-            <div>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/25">Agent Workflow</p>
-              <AgentTimeline logs={campaign.agentLogs} currentStep={campaign.currentStep} />
-            </div>
-            <div>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/25">Campaign Details</p>
-              <dl className="space-y-2.5">
-                {[
-                  ['Status', <StatusBadge key="s" status={campaign.status} type="campaign" />],
-                  ['Platforms', <div key="p" className="flex gap-1">{campaign.platforms.map(p => <PlatformIcon key={p} platform={p} size={14} />)}</div>],
-                  ['Start Date', formatDate(campaign.startDate)],
-                  campaign.endDate ? ['End Date', formatDate(campaign.endDate)] : null,
-                  ['Posts', campaign.postsCount],
-                  ['Created', formatRelativeTime(campaign.createdAt)],
-                ].filter(Boolean).map((item, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <dt className="text-white/35">{(item as [string, unknown])[0]}</dt>
-                    <dd className="text-white/70 font-medium">{(item as [string, unknown])[1] as string}</dd>
+        <div className="border-t border-white/5 animate-slide-in">
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 px-5 pt-3 border-b border-white/5">
+            {tabs.filter(t => t.show).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  'px-3 py-2 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px',
+                  tab === t.id
+                    ? 'border-violet-500 text-violet-300'
+                    : 'border-transparent text-white/35 hover:text-white/60'
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="px-5 py-5">
+            {tab === 'posts' && (
+              <PostsView campaignId={campaign.id} postsCount={campaign.postsCount} />
+            )}
+
+            {tab === 'workflow' && (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div>
+                  <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/25">Agent Pipeline</p>
+                  <AgentTimeline logs={campaign.agentLogs} currentStep={campaign.currentStep} />
+                </div>
+                <div>
+                  <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/25">Campaign Details</p>
+                  <dl className="space-y-2.5">
+                    {[
+                      ['Status', <StatusBadge key="s" status={campaign.status} type="campaign" />],
+                      ['Platforms', <div key="p" className="flex gap-1">{campaign.platforms.map(p => <PlatformIcon key={p} platform={p} size={14} />)}</div>],
+                      ['Start Date', formatDate(campaign.startDate)],
+                      campaign.endDate ? ['End Date', formatDate(campaign.endDate)] : null,
+                      ['Posts generated', campaign.postsCount],
+                      ['Created', formatRelativeTime(campaign.createdAt)],
+                    ].filter(Boolean).map((item, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <dt className="text-white/35">{(item as [string, unknown])[0]}</dt>
+                        <dd className="text-white/70 font-medium">{(item as [string, unknown])[1] as string}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="mt-5 flex items-center gap-2">
+                    {campaign.status === 'active' && (
+                      <button className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/50 hover:bg-white/[0.08] transition-colors cursor-pointer">
+                        <Pause size={12} /> Pause
+                      </button>
+                    )}
+                    {campaign.status === 'paused' && (
+                      <button className="flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-400 hover:bg-violet-600/30 transition-colors cursor-pointer">
+                        <Play size={12} /> Resume
+                      </button>
+                    )}
+                    {campaign.status === 'draft' && (
+                      <button className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 transition-colors cursor-pointer">
+                        <Bot size={12} /> Launch Agents
+                      </button>
+                    )}
+                    {campaign.status === 'completed' && (
+                      <button className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/50 hover:bg-white/[0.08] transition-colors cursor-pointer">
+                        <RotateCcw size={12} /> Clone Campaign
+                      </button>
+                    )}
                   </div>
-                ))}
-              </dl>
-              <div className="mt-5 flex items-center gap-2">
-                {campaign.status === 'active' && (
-                  <button className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/50 hover:bg-white/[0.08] transition-colors cursor-pointer">
-                    <Pause size={12} /> Pause
-                  </button>
-                )}
-                {campaign.status === 'paused' && (
-                  <button className="flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-400 hover:bg-violet-600/30 transition-colors cursor-pointer">
-                    <Play size={12} /> Resume
-                  </button>
-                )}
-                {campaign.status === 'draft' && (
-                  <button className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 transition-colors cursor-pointer">
-                    <Bot size={12} /> Launch Agents
-                  </button>
-                )}
-                {campaign.status === 'completed' && (
-                  <button className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-white/50 hover:bg-white/[0.08] transition-colors cursor-pointer">
-                    <RotateCcw size={12} /> Clone Campaign
-                  </button>
-                )}
+                </div>
               </div>
-            </div>
-            {campaign.apifyResearch && (
-              <div>
-                <ResearchPanel campaignId={campaign.id} />
-              </div>
+            )}
+
+            {tab === 'research' && campaign.apifyResearch && (
+              <ResearchPanel campaignId={campaign.id} />
             )}
           </div>
         </div>
