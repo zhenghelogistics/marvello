@@ -60,17 +60,43 @@ Return a JSON array with one object per post, in the same order:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 8096,
     system: systemPrompt,
+    tools: [
+      {
+        name: 'output_drafts',
+        description: 'Output the drafted posts',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            posts: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  platform: { type: 'string', enum: ['linkedin', 'instagram', 'facebook'] },
+                  title: { type: 'string' },
+                  content: { type: 'string' },
+                  hashtags: { type: 'array', items: { type: 'string' } },
+                  call_to_action: { type: 'string' },
+                  scheduled_day: { type: 'number' },
+                },
+                required: ['platform', 'title', 'content', 'hashtags', 'call_to_action', 'scheduled_day'],
+              },
+            },
+          },
+          required: ['posts'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'output_drafts' },
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : '[]'
-  const clean = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
-
-  const drafts = JSON.parse(clean) as DraftPost[]
-
-  // Merge scheduled_day from strategy if missing
+  const toolUse = response.content.find(b => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Writer did not return drafts')
+  const raw = toolUse.input as { posts?: DraftPost[] } | DraftPost[]
+  const drafts: DraftPost[] = Array.isArray(raw) ? raw : (raw.posts ?? [])
   return drafts.map((draft, i) => ({
     ...draft,
     scheduled_day: draft.scheduled_day ?? posts[i]?.scheduled_day ?? i + 1,

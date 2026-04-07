@@ -71,10 +71,45 @@ Return JSON:
     model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     system: systemPrompt,
+    tools: [
+      {
+        name: 'output_review',
+        description: 'Output the review results',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            approved_count: { type: 'number' },
+            revised_count: { type: 'number' },
+            overall_feedback: { type: 'string' },
+            posts: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  platform: { type: 'string' },
+                  title: { type: 'string' },
+                  content: { type: 'string' },
+                  hashtags: { type: 'array', items: { type: 'string' } },
+                  call_to_action: { type: 'string' },
+                  scheduled_day: { type: 'number' },
+                  approved: { type: 'boolean' },
+                  revision: { type: 'string' },
+                },
+                required: ['platform', 'title', 'content', 'hashtags', 'call_to_action', 'scheduled_day', 'approved'],
+              },
+            },
+          },
+          required: ['approved_count', 'revised_count', 'overall_feedback', 'posts'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'output_review' },
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : '{}'
-  const clean = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
-  return JSON.parse(clean) as ReviewResult
+  const toolUse = response.content.find(b => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Reviewer did not return results')
+  const raw = toolUse.input as ReviewResult & { posts?: ReviewedPost[] }
+  if (!Array.isArray(raw.posts)) raw.posts = []
+  return raw
 }

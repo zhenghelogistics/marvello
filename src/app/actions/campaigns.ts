@@ -57,7 +57,7 @@ export async function createCampaign(input: CreateCampaignInput) {
     }
   }
 
-  revalidatePath('/campaigns')
+  try { revalidatePath('/campaigns') } catch { /* no-op outside Next.js request context */ }
 
   // Trigger the agent pipeline in the background (fire-and-forget)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'

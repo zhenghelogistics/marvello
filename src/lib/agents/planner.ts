@@ -84,14 +84,43 @@ Create a content strategy. Return JSON matching this exact structure:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: systemPrompt,
+    tools: [
+      {
+        name: 'output_strategy',
+        description: 'Output the content strategy',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            summary: { type: 'string' },
+            total_posts: { type: 'number' },
+            duration_days: { type: 'number' },
+            posts: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  platform: { type: 'string', enum: ['linkedin', 'instagram', 'facebook'] },
+                  topic: { type: 'string' },
+                  angle: { type: 'string' },
+                  pillar: { type: 'string' },
+                  format: { type: 'string', enum: ['post', 'article', 'carousel', 'story'] },
+                  scheduled_day: { type: 'number' },
+                },
+                required: ['platform', 'topic', 'angle', 'pillar', 'format', 'scheduled_day'],
+              },
+            },
+          },
+          required: ['summary', 'total_posts', 'duration_days', 'posts'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'output_strategy' },
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-
-  // Strip any markdown fences if present
-  const clean = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
-  return JSON.parse(clean) as ContentStrategy
+  const toolUse = response.content.find(b => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Planner did not return a strategy')
+  return toolUse.input as ContentStrategy
 }
