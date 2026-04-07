@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { PlatformIcon } from '@/components/ui-custom/platform-icon'
-import { mockTimeSeries, mockEngagementByPlatform } from '@/lib/mock-data'
+import { mockEngagementByPlatform } from '@/lib/mock-data'
 import { formatNumber, platformLabel, cn } from '@/lib/utils'
+import type { Post } from '@/types'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -95,17 +96,16 @@ function PlatformBreakdown({ analytics }: { analytics: AnalyticsSnapshot[] }) {
 interface AnalyticsClientProps {
   analytics: AnalyticsSnapshot[]
   isLive: boolean
+  posts: Post[]
+  timeSeries: { date: string; value: number }[]
 }
 
-export function AnalyticsClient({ analytics, isLive }: AnalyticsClientProps) {
+export function AnalyticsClient({ analytics, isLive, posts, timeSeries }: AnalyticsClientProps) {
   const [period, setPeriod] = useState<Period>('30d')
   const [activeMetric, setActiveMetric] = useState<'impressions' | 'engagement'>('impressions')
 
   const sliceMap: Record<Period, number> = { '7d': 7, '14d': 14, '30d': 30, '90d': 30 }
-  const chartData = mockTimeSeries.slice(-sliceMap[period]).map(d => ({
-    date: d.date.slice(5),
-    value: d.value,
-  }))
+  const chartData = timeSeries.slice(-sliceMap[period])
 
   // Build engagement bar data from real analytics if available
   const barData = analytics.length > 0
@@ -179,7 +179,7 @@ export function AnalyticsClient({ analytics, isLive }: AnalyticsClientProps) {
         {/* Impressions over time */}
         <div className="lg:col-span-2 rounded-xl border border-white/5 bg-white/[0.02] p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-white">Impressions over time</p>
+            <p className="text-sm font-medium text-white">Posts scheduled per day</p>
             <div className="flex gap-1">
               {(['impressions', 'engagement'] as const).map(m => (
                 <button
@@ -241,28 +241,29 @@ export function AnalyticsClient({ analytics, isLive }: AnalyticsClientProps) {
         <PlatformBreakdown analytics={analytics} />
       </div>
 
-      {/* Top posts table */}
+      {/* Posts table */}
       <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
-        <p className="text-sm font-medium text-white mb-4">Top Performing Posts</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-white/5">
-                {['Post', 'Platform', 'Impressions', 'Likes', 'Comments', 'Shares', 'Eng. Rate'].map(h => (
-                  <th key={h} className="pb-2 text-left font-medium text-white/30 pr-4 last:pr-0">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {[
-                { title: 'Q2 Product Launch Announcement', platform: 'linkedin' as Platform, metrics: { impressions: 14820, likes: 432, comments: 67, shares: 89, clicks: 1204, reach: 11300 } },
-                { title: 'Behind the Scenes — Team Culture', platform: 'instagram' as Platform, metrics: { impressions: 9870, likes: 891, comments: 134, shares: 45, clicks: 670, reach: 8200 } },
-              ].map((post, i) => {
-                const engRate = post.metrics ? ((post.metrics.likes + post.metrics.comments + post.metrics.shares) / post.metrics.impressions * 100).toFixed(1) : '—'
-                return (
-                  <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-medium text-white">Drafted Posts</p>
+          <span className="text-xs text-white/30">{posts.length} total</span>
+        </div>
+        {posts.length === 0 ? (
+          <p className="text-sm text-white/30 py-6 text-center">No posts yet — create a campaign to generate content</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/5">
+                  {['Post', 'Platform', 'Status', 'Scheduled'].map(h => (
+                    <th key={h} className="pb-2 text-left font-medium text-white/30 pr-4 last:pr-0">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {posts.slice(0, 10).map(post => (
+                  <tr key={post.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 pr-4">
-                      <p className="font-medium text-white/70 truncate max-w-[180px]">{post.title}</p>
+                      <p className="font-medium text-white/70 truncate max-w-[220px]">{post.title}</p>
                     </td>
                     <td className="py-2.5 pr-4">
                       <div className="flex items-center gap-1.5">
@@ -270,17 +271,22 @@ export function AnalyticsClient({ analytics, isLive }: AnalyticsClientProps) {
                         <span className="text-white/40">{platformLabel[post.platform]}</span>
                       </div>
                     </td>
-                    <td className="py-2.5 pr-4 font-mono text-white/60">{formatNumber(post.metrics.impressions)}</td>
-                    <td className="py-2.5 pr-4 font-mono text-white/60">{post.metrics.likes}</td>
-                    <td className="py-2.5 pr-4 font-mono text-white/60">{post.metrics.comments}</td>
-                    <td className="py-2.5 pr-4 font-mono text-white/60">{post.metrics.shares}</td>
-                    <td className="py-2.5 font-mono text-emerald-400">{engRate}%</td>
+                    <td className="py-2.5 pr-4">
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                        post.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
+                        post.status === 'scheduled' ? 'bg-violet-500/15 text-violet-400' :
+                        'bg-white/5 text-white/30'
+                      )}>{post.status}</span>
+                    </td>
+                    <td className="py-2.5 font-mono text-white/40">
+                      {post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '—'}
+                    </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
