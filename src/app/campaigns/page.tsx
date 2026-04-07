@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { db } from '@/lib/db'
 import { campaigns, agentLogs } from '@/lib/db/schema'
 import { inArray } from 'drizzle-orm'
