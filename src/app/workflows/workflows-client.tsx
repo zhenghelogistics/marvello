@@ -6,7 +6,7 @@ import { PlatformIcon } from '@/components/ui-custom/platform-icon'
 import { cn, formatRelativeTime, agentRoleColor, agentRoleLabel } from '@/lib/utils'
 import {
   Check, AlertCircle, Loader2, ChevronDown, ChevronRight,
-  Bot, FileText, Clock, Zap
+  Bot, FileText, Clock
 } from 'lucide-react'
 import type { Campaign, AgentLog, AgentRole } from '@/types'
 
@@ -199,13 +199,6 @@ function WorkflowCard({ campaign: initial }: { campaign: Campaign }) {
             })}
           </div>
 
-          {/* Research badge */}
-          {campaign.apifyResearch && (
-            <div className="flex items-center gap-2 border-t border-white/5 py-3 mt-1">
-              <Zap size={12} className="text-amber-400" />
-              <span className="text-[11px] text-white/40">Apify pre-research enabled — competitor analysis + trend data fed to Planner</span>
-            </div>
-          )}
         </div>
       )}
     </div>

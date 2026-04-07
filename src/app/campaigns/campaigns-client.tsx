@@ -15,7 +15,6 @@ import {
   AlertCircle, Zap, Play, Pause, RotateCcw, Loader2,
   FileText, Copy
 } from 'lucide-react'
-import { ResearchPanel } from '@/components/ui-custom/research-panel'
 import type { Campaign, AgentLog, AgentRole, Post } from '@/types'
 
 const agentSteps: AgentRole[] = ['planner', 'writer', 'reviewer', 'publisher', 'analyst']
@@ -198,7 +197,7 @@ function PostsView({ campaignId, postsCount }: { campaignId: string; postsCount:
   )
 }
 
-type CampaignTab = 'posts' | 'workflow' | 'research'
+type CampaignTab = 'posts' | 'workflow'
 
 function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
   const [expanded, setExpanded] = useState(false)
@@ -232,7 +231,6 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
   const tabs: { id: CampaignTab; label: string; show: boolean }[] = [
     { id: 'posts', label: `Posts${campaign.postsCount > 0 ? ` (${campaign.postsCount})` : ''}`, show: true },
     { id: 'workflow', label: 'Workflow', show: true },
-    { id: 'research', label: 'Research', show: campaign.apifyResearch },
   ]
 
   return (
@@ -346,9 +344,6 @@ function CampaignCard({ campaign: initial }: { campaign: Campaign }) {
               </div>
             )}
 
-            {tab === 'research' && campaign.apifyResearch && (
-              <ResearchPanel campaignId={campaign.id} />
-            )}
           </div>
         </div>
       )}
