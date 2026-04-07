@@ -70,11 +70,17 @@ export function Sidebar() {
         <ul className="space-y-0.5">
           <li>
             <Link
-              href="/campaigns"
-              className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-white/50 transition-colors duration-150 hover:bg-white/5 hover:text-white/80 cursor-pointer"
+              href="/workflows"
+              className={cn(
+                'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors duration-150 cursor-pointer',
+                pathname === '/workflows'
+                  ? 'bg-violet-600/20 text-violet-300'
+                  : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+              )}
             >
-              <Bot size={15} className="text-white/40" />
+              <Bot size={15} className={pathname === '/workflows' ? 'text-violet-400' : 'text-white/40'} />
               Agent Workflows
+              {pathname === '/workflows' && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-violet-500" />}
             </Link>
           </li>
           <li>
