@@ -66,21 +66,24 @@ export async function runTrendingTopics(industry: string, platforms: string[]) {
 }
 
 export async function runInstagramScrape(handles: string[]) {
+  // resultsType 'details' returns profile info (followersCount, postsCount, etc.)
   return runActor('apify/instagram-scraper', {
-    directUrls: handles.map(h => `https://www.instagram.com/${h}/`),
-    resultsType: 'posts',
-    resultsLimit: 10,
+    usernames: handles,
+    resultsType: 'details',
+    resultsLimit: 1,
   })
 }
 
-export async function runLinkedInScrape(profileUrls: string[]) {
-  return runActor('dev_fusion/Linkedin-Profile-Scraper', {
-    profileUrls,
+export async function runLinkedInScrape(companyUrls: string[]) {
+  // apify/linkedin-companies-scraper handles company pages (not personal profiles)
+  return runActor('apify/linkedin-companies-scraper', {
+    startUrls: companyUrls.map(url => ({ url })),
+    count: 1,
   })
 }
 
 export async function runFacebookScrape(pageUrls: string[]) {
-  return runActor('apify/facebook-posts-scraper', {
+  return runActor('apify/facebook-pages-scraper', {
     startUrls: pageUrls.map(url => ({ url })),
     maxPosts: 10,
   })
@@ -195,42 +198,67 @@ export async function collectProfileMetrics(runIds: { linkedin: string; instagra
     followersGrowth: number
   }> = {}
 
-  // ── LinkedIn ──────────────────────────────────────────────────────────────
+  // ── LinkedIn (apify/linkedin-companies-scraper) ──────────────────────────
   const liStatus = await waitForRun(runIds.linkedin, 90_000)
   if (liStatus === 'done') {
     const items = await getRunResults(runIds.linkedin) as Record<string, unknown>[]
-    const profile = items[0] ?? {}
-    const followers = Number((profile.followers as number | null) ?? (profile.followerCount as number | null) ?? 0)
-    const postsCount = Number((profile.postsCount as number | null) ?? (profile.posts as unknown[])?.length ?? 0)
+    const co = items[0] ?? {}
+    // Actor returns: followersCount, employeeCount, name, description
+    const followers = Number(
+      (co.followersCount as number | null) ??
+      (co.followers as number | null) ??
+      (co.followerCount as number | null) ?? 0
+    )
+    const postsCount = Number((co.postsCount as number | null) ?? 0)
     results.linkedin = { followers, postsCount, impressions: 0, reach: followers, engagement: 0, followersGrowth: 0 }
   }
 
-  // ── Instagram ─────────────────────────────────────────────────────────────
+  // ── Instagram (apify/instagram-scraper with resultsType: 'details') ───────
   const igStatus = await waitForRun(runIds.instagram, 90_000)
   if (igStatus === 'done') {
     const items = await getRunResults(runIds.instagram) as Record<string, unknown>[]
-    // First item may be profile metadata, rest are posts
-    const profile = items.find(i => (i.followersCount as number) != null) ?? {}
-    const posts = items.filter(i => (i.likesCount as number) != null || (i.commentsCount as number) != null)
+    const profile = items[0] ?? {}
+    // Actor returns: followersCount, followsCount, postsCount, latestPosts[]
     const followers = Number((profile.followersCount as number | null) ?? 0)
-    const postsCount = posts.length || Number((profile.postsCount as number | null) ?? 0)
-    const totalLikes = posts.reduce((s, p) => s + Number((p.likesCount as number | null) ?? 0), 0)
-    const totalComments = posts.reduce((s, p) => s + Number((p.commentsCount as number | null) ?? 0), 0)
-    const engagementRate = followers > 0 && postsCount > 0
-      ? ((totalLikes + totalComments) / postsCount / followers) * 100
+    const postsCount = Number((profile.postsCount as number | null) ?? 0)
+    const latestPosts = (profile.latestPosts as Record<string, unknown>[] | null) ?? []
+    const totalLikes = latestPosts.reduce((s, p) => s + Number((p.likesCount as number | null) ?? 0), 0)
+    const totalComments = latestPosts.reduce((s, p) => s + Number((p.commentsCount as number | null) ?? 0), 0)
+    const engagementRate = followers > 0 && latestPosts.length > 0
+      ? ((totalLikes + totalComments) / latestPosts.length / followers) * 100
       : 0
-    results.instagram = { followers, postsCount, impressions: totalLikes, reach: followers, engagement: Math.round(engagementRate * 100) / 100, followersGrowth: 0 }
+    results.instagram = {
+      followers,
+      postsCount,
+      impressions: totalLikes,
+      reach: followers,
+      engagement: Math.round(engagementRate * 100) / 100,
+      followersGrowth: 0,
+    }
   }
 
-  // ── Facebook ──────────────────────────────────────────────────────────────
+  // ── Facebook (apify/facebook-pages-scraper) ───────────────────────────────
   const fbStatus = await waitForRun(runIds.facebook, 90_000)
   if (fbStatus === 'done') {
     const items = await getRunResults(runIds.facebook) as Record<string, unknown>[]
-    const posts = items.filter(i => (i.likesCount as number) != null || (i.text as string) != null)
-    const totalLikes = posts.reduce((s, p) => s + Number((p.likesCount as number | null) ?? 0), 0)
-    const totalComments = posts.reduce((s, p) => s + Number((p.commentsCount as number | null) ?? 0), 0)
-    const totalShares = posts.reduce((s, p) => s + Number((p.sharesCount as number | null) ?? 0), 0)
-    results.facebook = { followers: 0, postsCount: posts.length, impressions: totalLikes + totalComments + totalShares, reach: 0, engagement: 0, followersGrowth: 0 }
+    const page = items[0] ?? {}
+    // Actor returns: likes, followers, posts[]
+    const followers = Number(
+      (page.followers as number | null) ??
+      (page.likes as number | null) ??
+      (page.fanCount as number | null) ?? 0
+    )
+    const pagePosts = (page.posts as Record<string, unknown>[] | null) ?? []
+    const totalLikes = pagePosts.reduce((s, p) => s + Number((p.likes as number | null) ?? 0), 0)
+    const totalComments = pagePosts.reduce((s, p) => s + Number((p.comments as number | null) ?? 0), 0)
+    results.facebook = {
+      followers,
+      postsCount: pagePosts.length,
+      impressions: totalLikes + totalComments,
+      reach: followers,
+      engagement: 0,
+      followersGrowth: 0,
+    }
   }
 
   return results
