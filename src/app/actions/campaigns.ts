@@ -2,8 +2,14 @@
 
 import { db } from '@/lib/db'
 import { campaigns, apifyJobs } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { runCampaignResearch } from '@/lib/apify'
 import { revalidatePath } from 'next/cache'
+
+export async function deleteCampaign(id: string) {
+  await db.delete(campaigns).where(eq(campaigns.id, id))
+  try { revalidatePath('/campaigns') } catch { /* no-op */ }
+}
 
 export interface CreateCampaignInput {
   name: string
