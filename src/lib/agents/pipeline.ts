@@ -23,13 +23,13 @@ function chainStep(step: string, campaignId: string) {
     : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
 
   // after() ensures the fetch is sent before Vercel freezes this function's execution context
-  after(
+  after(() => {
     fetch(`${base}/api/agents/step`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ campaignId, step }),
     }).catch(err => console.error(`Failed to chain step ${step}:`, err))
-  )
+  })
 }
 
 // ── Individual steps (each must complete within 60s for Vercel Hobby) ─────────
