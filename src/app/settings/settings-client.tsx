@@ -105,7 +105,7 @@ function AccountsTab({ savedPlatforms }: { savedPlatforms: Record<string, SavedP
   const [syncing, setSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<{ synced: string[]; errors: { platform: string; error: string }[] } | null>(null)
   const [scrapingProfiles, setScrapingProfiles] = useState(false)
-  const [scrapeResult, setScrapeResult] = useState<{ synced?: string[]; error?: string } | null>(null)
+  const [scrapeResult, setScrapeResult] = useState<{ synced?: string[]; error?: string; status?: string } | null>(null)
   const [disconnecting, setDisconnecting] = useState<PlatformKey | null>(null)
 
   const handleDisconnect = async (platform: PlatformKey) => {
@@ -134,11 +134,40 @@ function AccountsTab({ savedPlatforms }: { savedPlatforms: Record<string, SavedP
     setScrapeResult(null)
     try {
       const res = await fetch('/api/apify/sync-profiles', { method: 'POST' })
-      const json = await res.json() as { synced?: string[]; error?: string }
-      setScrapeResult(json)
+      const json = await res.json() as { started?: boolean; error?: string }
+      if (json.error) { setScrapeResult({ error: json.error }); setScrapingProfiles(false); return }
+
+      // Poll until done
+      const poll = setInterval(async () => {
+        try {
+          const pollRes = await fetch('/api/apify/sync-profiles')
+          const pollJson = await pollRes.json() as { status: string; synced?: string[]; error?: string }
+          if (pollJson.status === 'done') {
+            clearInterval(poll)
+            setScrapeResult({ synced: pollJson.synced, status: 'done' })
+            setScrapingProfiles(false)
+          } else if (pollJson.error) {
+            clearInterval(poll)
+            setScrapeResult({ error: pollJson.error })
+            setScrapingProfiles(false)
+          }
+        } catch {
+          clearInterval(poll)
+          setScrapeResult({ error: 'Polling failed' })
+          setScrapingProfiles(false)
+        }
+      }, 5000)
+
+      // Give up after 3 minutes
+      setTimeout(() => {
+        clearInterval(poll)
+        if (scrapingProfiles) {
+          setScrapeResult({ error: 'Timed out — Apify runs may still be processing' })
+          setScrapingProfiles(false)
+        }
+      }, 180000)
     } catch {
       setScrapeResult({ error: 'Network error' })
-    } finally {
       setScrapingProfiles(false)
     }
   }
@@ -171,8 +200,9 @@ function AccountsTab({ savedPlatforms }: { savedPlatforms: Record<string, SavedP
       </div>
 
       {scrapingProfiles && (
-        <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05] p-3 text-xs text-violet-300">
-          Scraping LinkedIn, Instagram & Facebook via Apify — this takes 1–2 minutes…
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05] p-3 text-xs text-violet-300 flex items-center gap-2">
+          <RefreshCw size={12} className="animate-spin shrink-0" />
+          Apify is scraping your LinkedIn, Instagram & Facebook — checking every 5s, takes 1–2 min…
         </div>
       )}
       {scrapeResult && (
