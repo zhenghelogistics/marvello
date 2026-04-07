@@ -75,8 +75,8 @@ export async function runInstagramScrape(handles: string[]) {
 }
 
 export async function runLinkedInScrape(companyUrls: string[]) {
-  return runActor('curious_coder/linkedin-company-scraper', {
-    startUrls: companyUrls.map(url => ({ url })),
+  return runActor('apify/linkedin-scraper', {
+    startUrls: companyUrls.map(url => ({ url, method: 'GET' })),
     maxResults: 1,
   })
 }
