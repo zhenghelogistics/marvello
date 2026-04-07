@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { db } from '@/lib/db'
 import { analyticsSnapshots } from '@/lib/db/schema'
 import { mockAnalytics } from '@/lib/mock-data'
