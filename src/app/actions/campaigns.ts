@@ -1,10 +1,17 @@
 'use server'
 
+import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { campaigns, apifyJobs } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { runCampaignResearch } from '@/lib/apify'
 import { revalidatePath } from 'next/cache'
+
+function appBaseUrl() {
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+}
 
 export async function deleteCampaign(id: string) {
   await db.delete(campaigns).where(eq(campaigns.id, id))
@@ -66,13 +73,14 @@ export async function createCampaign(input: CreateCampaignInput) {
 
   try { revalidatePath('/campaigns') } catch { /* no-op outside Next.js request context */ }
 
-  // Trigger the agent pipeline in the background (fire-and-forget)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  fetch(`${baseUrl}/api/agents/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ campaignId: id }),
-  }).catch(err => console.error('Failed to trigger agent pipeline:', err))
+  // Trigger the agent pipeline after the server action response is sent
+  after(() => {
+    fetch(`${appBaseUrl()}/api/agents/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaignId: id }),
+    }).catch(err => console.error('Failed to trigger agent pipeline:', err))
+  })
 
   return { id }
 }
