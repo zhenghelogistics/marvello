@@ -75,10 +75,9 @@ export async function runInstagramScrape(handles: string[]) {
 }
 
 export async function runLinkedInScrape(companyUrls: string[]) {
-  // apify/linkedin-companies-scraper handles company pages (not personal profiles)
-  return runActor('apify/linkedin-companies-scraper', {
+  return runActor('curious_coder/linkedin-company-scraper', {
     startUrls: companyUrls.map(url => ({ url })),
-    count: 1,
+    maxResults: 1,
   })
 }
 
