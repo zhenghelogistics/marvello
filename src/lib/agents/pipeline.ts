@@ -73,8 +73,12 @@ export async function runAgentPipeline(campaignId: string): Promise<{ postsCreat
   // 5. Save posts — fall back to raw drafts if reviewer returned nothing
   const sourcePosts = reviewResult.posts.length > 0 ? reviewResult.posts : drafts
   const finalPosts = sourcePosts.map(p => ({
-    ...p,
-    content: ('approved' in p && !p.approved && 'revision' in p) ? (p.revision ?? p.content) : p.content,
+    platform: p.platform,
+    title: p.title,
+    content: String(('approved' in p && !p.approved && 'revision' in p) ? (p.revision ?? p.content) : p.content),
+    hashtags: p.hashtags,
+    call_to_action: p.call_to_action,
+    scheduled_day: p.scheduled_day,
   }))
 
   const today = new Date()
