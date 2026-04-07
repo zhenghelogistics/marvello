@@ -1,3 +1,4 @@
+import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { campaigns, agentLogs, apifyJobs, posts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -14,12 +15,21 @@ async function updateCampaign(id: string, patch: Partial<typeof campaigns.$infer
 }
 
 function chainStep(step: string, campaignId: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  fetch(`${base}/api/agents/step`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ campaignId, step }),
-  }).catch(err => console.error(`Failed to chain step ${step}:`, err))
+  // Use Vercel's system env vars so this works in production (NEXT_PUBLIC_APP_URL is localhost)
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+
+  // after() ensures the fetch is sent before Vercel freezes this function's execution context
+  after(
+    fetch(`${base}/api/agents/step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaignId, step }),
+    }).catch(err => console.error(`Failed to chain step ${step}:`, err))
+  )
 }
 
 // ── Individual steps (each must complete within 60s for Vercel Hobby) ─────────
