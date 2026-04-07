@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { platformCredentials } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 type Platform = 'linkedin' | 'instagram' | 'facebook'
 
@@ -35,6 +36,18 @@ export async function savePlatformCredential(
         },
       })
 
+    return { success: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return { success: false, error: message }
+  }
+}
+
+export async function deletePlatformCredential(
+  platform: Platform
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await db.delete(platformCredentials).where(eq(platformCredentials.platform, platform))
     return { success: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
