@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { workspace } from '@/lib/workspace'
 import type { DraftPost } from './writer'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 50_000 })
 
 export interface ReviewedPost extends DraftPost {
   approved: boolean
@@ -69,7 +69,7 @@ Return JSON:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 3000,
     system: systemPrompt,
     tools: [
       {

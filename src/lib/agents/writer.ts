@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { workspace } from '@/lib/workspace'
 import type { ContentStrategy, PostPlan } from './planner'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 50_000 })
 
 export interface DraftPost {
   platform: 'linkedin' | 'instagram' | 'facebook'
@@ -60,7 +60,7 @@ Return a JSON array with one object per post, in the same order:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 8096,
+    max_tokens: 4000,
     system: systemPrompt,
     tools: [
       {

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { workspace } from '@/lib/workspace'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 50_000 })
 
 export interface PostPlan {
   platform: 'linkedin' | 'instagram' | 'facebook'
@@ -65,7 +65,7 @@ ${pillarsContext}
 
 ${researchResults ? `Apify Research Results:\n${researchResults}\n\nUse these insights to inform topic selection and angles.` : ''}
 
-Create a content strategy. Return JSON matching this exact structure:
+Create a content strategy. Limit to a maximum of 6 posts total. Return JSON matching this exact structure:
 {
   "summary": "1-2 sentence strategy overview",
   "total_posts": <number>,
@@ -84,7 +84,7 @@ Create a content strategy. Return JSON matching this exact structure:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 1500,
     system: systemPrompt,
     tools: [
       {
