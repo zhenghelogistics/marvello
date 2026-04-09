@@ -2,8 +2,12 @@ import { db } from '@/lib/db'
 import { apifyJobs } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 
-const APIFY_TOKEN = process.env.APIFY_API_TOKEN!
 const APIFY_BASE = 'https://api.apify.com/v2'
+
+function getToken(): string {
+  if (!process.env.APIFY_API_TOKEN) throw new Error('APIFY_API_TOKEN is not set in environment variables')
+  return process.env.APIFY_API_TOKEN
+}
 
 export type ApifyResearchType = 'competitor-analysis' | 'trending-topics' | 'hashtag-research'
 
@@ -14,7 +18,8 @@ interface ActorRunResult {
 
 // Trigger an Apify actor run and return the run ID
 async function runActor(actorId: string, input: Record<string, unknown>): Promise<ActorRunResult> {
-  const res = await fetch(`${APIFY_BASE}/acts/${encodeURIComponent(actorId)}/runs?token=${APIFY_TOKEN}`, {
+  const token = getToken()
+  const res = await fetch(`${APIFY_BASE}/acts/${encodeURIComponent(actorId)}/runs?token=${token}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -29,16 +34,18 @@ async function runActor(actorId: string, input: Record<string, unknown>): Promis
 
 // Fetch results from a completed run's dataset
 async function getRunResults(runId: string): Promise<unknown[]> {
-  const res = await fetch(`${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_TOKEN}`)
+  const token = getToken()
+  const res = await fetch(`${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${token}`)
   if (!res.ok) throw new Error(`Failed to fetch run results: ${res.status}`)
   return res.json()
 }
 
 // Wait for a run to finish (polls every 3s, max 60s)
 async function waitForRun(runId: string, maxWaitMs = 60000): Promise<string> {
+  const token = getToken()
   const start = Date.now()
   while (Date.now() - start < maxWaitMs) {
-    const res = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_TOKEN}`)
+    const res = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${token}`)
     const data = await res.json()
     const status = data.data.status
     if (status === 'SUCCEEDED') return 'done'
@@ -134,7 +141,7 @@ export async function pollAndSaveJobResults(campaignId: string): Promise<number>
   for (const job of runningJobs) {
     if (!job.runId) continue
 
-    const res = await fetch(`${APIFY_BASE}/actor-runs/${job.runId}?token=${APIFY_TOKEN}`)
+    const res = await fetch(`${APIFY_BASE}/actor-runs/${job.runId}?token=${getToken()}`)
     if (!res.ok) continue
 
     const data = await res.json()
