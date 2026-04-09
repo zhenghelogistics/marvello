@@ -91,11 +91,15 @@ export async function runWriterStep(campaignId: string) {
   const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId))
   if (!campaign) throw new Error('Campaign not found')
 
-  // Retrieve strategy from the planner's stored output
-  const plannerLogs = await db.select().from(agentLogs)
-    .where(eq(agentLogs.campaignId, campaignId))
-  const strategyLog = plannerLogs.find(l => l.role === 'planner' && l.message === '__strategy__')
-  if (!strategyLog?.output) throw new Error('No strategy found — planner may not have completed')
+  // Retrieve strategy from the planner's stored output, retrying in case of replication lag
+  let strategyLog
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const logs = await db.select().from(agentLogs).where(eq(agentLogs.campaignId, campaignId))
+    strategyLog = logs.find(l => l.role === 'planner' && l.message === '__strategy__')
+    if (strategyLog?.output) break
+    await new Promise(r => setTimeout(r, 1000))
+  }
+  if (!strategyLog?.output) throw new Error('No strategy found after 5 attempts — planner may not have completed')
 
   const strategy = JSON.parse(strategyLog.output)
 
