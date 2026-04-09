@@ -70,9 +70,15 @@ function WorkflowCard({ campaign: initial }: { campaign: Campaign }) {
   const [showOutput, setShowOutput] = useState<string | null>(null)
 
   const poll = useCallback(async () => {
+    console.log(`[Marvello] Polling campaign "${campaign.name}" (${campaign.id}) — step: ${campaign.currentStep}, progress: ${campaign.progress}%`)
     const res = await fetch(`/api/campaigns/${campaign.id}`)
-    if (!res.ok) return
+    if (!res.ok) { console.warn(`[Marvello] Poll failed: ${res.status}`); return }
     const data = await res.json() as Campaign & { agentLogs: AgentLog[] }
+    console.log(`[Marvello] Update — step: ${data.currentStep ?? 'done'}, progress: ${data.progress}%, status: ${data.status}, posts: ${data.postsCount}`)
+    if (data.agentLogs?.length) {
+      const latest = data.agentLogs[data.agentLogs.length - 1]
+      console.log(`[Marvello] Latest log — [${latest.role}] ${latest.status}: ${latest.message}`)
+    }
     setCampaign(prev => ({
       ...prev,
       currentStep: data.currentStep,
@@ -81,12 +87,13 @@ function WorkflowCard({ campaign: initial }: { campaign: Campaign }) {
       postsCount: data.postsCount,
       agentLogs: data.agentLogs,
     }))
-  }, [campaign.id])
+  }, [campaign.id, campaign.name, campaign.currentStep, campaign.progress])
 
   useEffect(() => {
     if (campaign.currentStep === null) return
+    console.log(`[Marvello] Starting poll for "${campaign.name}" every 3s`)
     const t = setInterval(poll, 3000)
-    return () => clearInterval(t)
+    return () => { console.log(`[Marvello] Stopped polling "${campaign.name}"`); clearInterval(t) }
   }, [campaign.currentStep, poll])
 
   const isRunning = campaign.currentStep !== null

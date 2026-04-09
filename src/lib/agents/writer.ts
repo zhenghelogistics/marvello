@@ -60,7 +60,7 @@ Return a JSON array with one object per post, in the same order:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
+    max_tokens: 2500,
     system: systemPrompt,
     tools: [
       {

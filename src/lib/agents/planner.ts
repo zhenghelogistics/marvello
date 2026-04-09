@@ -65,7 +65,7 @@ ${pillarsContext}
 
 ${researchResults ? `Apify Research Results:\n${researchResults}\n\nUse these insights to inform topic selection and angles.` : ''}
 
-Create a content strategy. Limit to a maximum of 6 posts total. Return JSON matching this exact structure:
+Create a content strategy. Limit to a maximum of 3 posts total. Return JSON matching this exact structure:
 {
   "summary": "1-2 sentence strategy overview",
   "total_posts": <number>,
