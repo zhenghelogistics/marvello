@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import type { Campaign, AgentLog, AgentRole, Post } from '@/types'
 
-const agentSteps: AgentRole[] = ['planner', 'writer', 'reviewer', 'publisher', 'analyst']
+const agentSteps: AgentRole[] = ['planner', 'writer', 'reviewer']
 
 const PILLARS = [
   { id: 'education', label: 'Educate the Shipper', color: '#8B5CF6', weight: 40 },

@@ -12,7 +12,7 @@ import {
 import Link from 'next/link'
 import type { Campaign, Post } from '@/types'
 
-const agentSteps = ['planner', 'writer', 'reviewer', 'publisher', 'analyst'] as const
+const agentSteps = ['planner', 'writer', 'reviewer'] as const
 const stepColors: Record<string, string> = {
   planner: '#8B5CF6', writer: '#06B6D4',
   reviewer: '#F59E0B', publisher: '#22C55E', analyst: '#EC4899',

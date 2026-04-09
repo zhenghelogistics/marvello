@@ -141,7 +141,8 @@ export async function runReviewerStep(campaignId: string) {
     `Review complete: ${reviewResult.approved_count} approved, ${reviewResult.revised_count} revised.`,
     reviewResult.overall_feedback
   )
-  await updateCampaign(campaignId, { currentStep: 'publisher', progress: 85 })
+  // Stay on reviewer step while finalize runs — no publisher step
+  await updateCampaign(campaignId, { currentStep: 'reviewer', progress: 90 })
 
   chainStep('finalize', campaignId)
 }
@@ -188,7 +189,7 @@ export async function runFinalizeStep(campaignId: string) {
 
   if (postRecords.length === 0) throw new Error('No posts generated')
   await db.insert(posts).values(postRecords)
-  await log(campaignId, 'publisher', 'done', `${postRecords.length} posts scheduled to calendar.`)
+  await log(campaignId, 'reviewer', 'done', `${postRecords.length} posts ready — review and publish from the Posts tab.`)
   await updateCampaign(campaignId, { currentStep: null, progress: 100, status: 'active', postsCount: postRecords.length })
 }
 

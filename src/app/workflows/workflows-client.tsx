@@ -10,14 +10,12 @@ import {
 } from 'lucide-react'
 import type { Campaign, AgentLog, AgentRole } from '@/types'
 
-const AGENT_STEPS: AgentRole[] = ['planner', 'writer', 'reviewer', 'publisher', 'analyst']
+const AGENT_STEPS: AgentRole[] = ['planner', 'writer', 'reviewer']
 
-const STEP_DESCRIPTIONS: Record<AgentRole, string> = {
+const STEP_DESCRIPTIONS: Record<string, string> = {
   planner: 'Builds content strategy — platforms, topics, post schedule',
   writer: 'Drafts all posts using brand voice guidelines',
-  reviewer: 'Checks drafts for quality, tone, and brand alignment',
-  publisher: 'Schedules and publishes posts to social platforms',
-  analyst: 'Collects performance data 48h after publishing',
+  reviewer: 'Checks drafts for quality, tone, and brand alignment — then saves posts for your review',
 }
 
 function StepNode({ step, log, isActive, isFuture }: {
@@ -129,7 +127,7 @@ function WorkflowCard({ campaign: initial }: { campaign: Campaign }) {
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-[11px] text-white/35">{formatRelativeTime(campaign.createdAt)}</span>
             <span className="text-[11px] text-white/25">·</span>
-            <span className="text-[11px] text-white/35">{completedSteps}/{AGENT_STEPS.length} steps</span>
+            <span className="text-[11px] text-white/35">{Math.min(completedSteps, AGENT_STEPS.length)}/{AGENT_STEPS.length} steps</span>
             {campaign.postsCount > 0 && (
               <>
                 <span className="text-[11px] text-white/25">·</span>
@@ -227,7 +225,7 @@ export function WorkflowsClient({ campaigns }: { campaigns: Campaign[] }) {
     <div className="p-6 max-w-4xl">
       <PageHeader
         title="Agent Workflows"
-        description="Live view of your AI pipeline — planner, writer, reviewer, publisher, analyst"
+        description="AI drafts your content — you review and publish"
       />
 
       {campaigns.length === 0 ? (
