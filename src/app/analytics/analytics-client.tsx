@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { PlatformIcon } from '@/components/ui-custom/platform-icon'
-import { mockEngagementByPlatform } from '@/lib/mock-data'
 import { formatNumber, platformLabel, cn } from '@/lib/utils'
 import type { Post } from '@/types'
 import {
@@ -115,7 +114,7 @@ export function AnalyticsClient({ analytics, isLive, posts, timeSeries }: Analyt
         posts: a.posts,
         color: ({ linkedin: '#0077B5', instagram: '#E1306C', facebook: '#1877F2' } as Record<string, string>)[a.platform] ?? '#8B5CF6',
       }))
-    : mockEngagementByPlatform
+    : []
 
   // Compute KPI totals from analytics data
   const totalImpressions = analytics.reduce((s, a) => s + a.impressions, 0)

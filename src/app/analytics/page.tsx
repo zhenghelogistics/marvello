@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import { db } from '@/lib/db'
 import { analyticsSnapshots, posts } from '@/lib/db/schema'
-import { mockAnalytics } from '@/lib/mock-data'
 import { AnalyticsClient } from './analytics-client'
 import type { AnalyticsSnapshot, Post } from '@/types'
 import type { Platform } from '@/types'
@@ -26,7 +25,7 @@ export default async function AnalyticsPage() {
         followersGrowth: row.followersGrowth,
         posts: row.postsCount,
       }))
-    : mockAnalytics
+    : []
 
   const realPosts: Post[] = dbPosts.map(p => ({
     id: p.id,
