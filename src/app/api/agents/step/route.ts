@@ -26,12 +26,18 @@ export async function POST(request: NextRequest) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error(`Step ${step} error for campaign ${campaignId}:`, err)
 
-    // Mark campaign as errored so UI shows something
+    // Mark campaign as paused and write visible error log
     try {
       const { db } = await import('@/lib/db')
-      const { campaigns } = await import('@/lib/db/schema')
+      const { campaigns, agentLogs } = await import('@/lib/db/schema')
       const { eq } = await import('drizzle-orm')
       await db.update(campaigns).set({ currentStep: null, status: 'paused' }).where(eq(campaigns.id, campaignId))
+      await db.insert(agentLogs).values({
+        id: crypto.randomUUID(), campaignId,
+        role: step as 'planner' | 'writer' | 'reviewer',
+        status: 'error',
+        message: `Error: ${message}`,
+      })
     } catch { /* best-effort */ }
 
     return Response.json({ error: message }, { status: 500 })
