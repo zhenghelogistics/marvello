@@ -15,14 +15,23 @@ async function updateCampaign(id: string, patch: Partial<typeof campaigns.$infer
 }
 
 function chainStep(step: string, campaignId: string) {
-  // Use Vercel's system env vars so this works in production (NEXT_PUBLIC_APP_URL is localhost)
+  if (process.env.NODE_ENV === 'development') {
+    // In dev, call the step function directly — no HTTP round-trip needed
+    const fn = step === 'writer' ? runWriterStep
+      : step === 'reviewer' ? runReviewerStep
+      : step === 'finalize' ? runFinalizeStep
+      : null
+    if (fn) fn(campaignId).catch(err => console.error(`Step ${step} failed:`, err))
+    return
+  }
+
+  // Production: fire HTTP request to a new function invocation so each step gets its own 60s budget
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
 
-  // after() ensures the fetch is sent before Vercel freezes this function's execution context
   after(() => {
     fetch(`${base}/api/agents/step`, {
       method: 'POST',
