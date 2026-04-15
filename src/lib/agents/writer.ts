@@ -29,10 +29,10 @@ Brand voice: ${workspace.brandVoice.tone}
 Always: ${workspace.brandVoice.always.join(' | ')}
 Never: ${workspace.brandVoice.avoid.join(' | ')}
 
-Platform-specific guidance:
-- LinkedIn: Professional tone, thought leadership, end with a question to drive comments. 150-300 words. Paragraphs, no bullet spam.
-- Instagram: Punchy opener, visual language, 5-10 relevant hashtags, emoji used sparingly. 80-150 words.
-- Facebook: Conversational, community-focused, can be longer. Include a clear CTA. 100-200 words.
+Platform-specific guidance (strict word limits — do not exceed):
+- LinkedIn: Professional, thought leadership, end with a question. MAX 120 words. Short paragraphs.
+- Instagram: Punchy opener, 3-5 hashtags, emoji used sparingly. MAX 80 words.
+- Facebook: Conversational, clear CTA. MAX 100 words.
 
 Write posts that sound like a real freight forwarder who knows their stuff — not a corporate marketing bot.
 Output valid JSON only.`
@@ -60,7 +60,7 @@ Return a JSON array with one object per post, in the same order:
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2500,
+    max_tokens: 2000,
     system: systemPrompt,
     tools: [
       {
@@ -96,7 +96,8 @@ Return a JSON array with one object per post, in the same order:
   const toolUse = response.content.find(b => b.type === 'tool_use')
   if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Writer did not return drafts')
   const raw = toolUse.input as { posts?: DraftPost[] } | DraftPost[]
-  const drafts: DraftPost[] = Array.isArray(raw) ? raw : (raw.posts ?? [])
+  const drafts: DraftPost[] = Array.isArray(raw) ? raw : (Array.isArray(raw.posts) ? raw.posts : [])
+  if (drafts.length === 0) throw new Error('Writer returned empty drafts')
   return drafts.map((draft, i) => ({
     ...draft,
     scheduled_day: draft.scheduled_day ?? posts[i]?.scheduled_day ?? i + 1,
