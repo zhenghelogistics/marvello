@@ -1,4 +1,3 @@
-import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { campaigns, agentLogs, apifyJobs, posts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -14,39 +13,14 @@ async function updateCampaign(id: string, patch: Partial<typeof campaigns.$infer
   await db.update(campaigns).set(patch).where(eq(campaigns.id, id))
 }
 
-function chainStep(step: string, campaignId: string) {
-  if (process.env.NODE_ENV === 'development') {
-    // In dev, call the step function directly — no HTTP round-trip needed
-    const fn = step === 'writer' ? runWriterStep
-      : step === 'reviewer' ? runReviewerStep
-      : step === 'finalize' ? runFinalizeStep
-      : null
-    if (fn) fn(campaignId).catch(err => console.error(`Step ${step} failed:`, err))
-    return
-  }
+// ── Full pipeline — runs all 3 steps sequentially in one function call ────────
+// All agents use Haiku so total time stays well under Vercel's 60s limit.
 
-  // Production: fire HTTP request to a new function invocation so each step gets its own 60s budget
-  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
-
-  after(() => {
-    fetch(`${base}/api/agents/step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ campaignId, step }),
-    }).catch(err => console.error(`Failed to chain step ${step}:`, err))
-  })
-}
-
-// ── Individual steps (each must complete within 60s for Vercel Hobby) ─────────
-
-export async function runPlannerStep(campaignId: string) {
+export async function runAgentPipeline(campaignId: string): Promise<{ postsCreated: number }> {
   const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId))
   if (!campaign) throw new Error('Campaign not found')
 
+  // ── Step 1: Planner ──────────────────────────────────────────────────────────
   await updateCampaign(campaignId, { currentStep: 'planner', progress: 10 })
   await log(campaignId, 'planner', 'running', 'Analyzing campaign brief and building content strategy…')
 
@@ -69,41 +43,7 @@ export async function runPlannerStep(campaignId: string) {
   )
   await updateCampaign(campaignId, { currentStep: 'writer', progress: 35 })
 
-  // Save strategy to DB so the next step can read it
-  await db.update(campaigns)
-    .set({ description: campaign.description })
-    .where(eq(campaigns.id, campaignId))
-
-  // Store strategy in agent log output so writer step can retrieve it
-  await db.insert(agentLogs).values({
-    id: crypto.randomUUID(),
-    campaignId,
-    role: 'planner',
-    status: 'done',
-    message: '__strategy__',
-    output: JSON.stringify(strategy),
-  })
-
-  chainStep('writer', campaignId)
-}
-
-export async function runWriterStep(campaignId: string) {
-  const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId))
-  if (!campaign) throw new Error('Campaign not found')
-
-  // Retrieve strategy from the planner's stored output, retrying in case of replication lag
-  let strategyLog
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const logs = await db.select().from(agentLogs).where(eq(agentLogs.campaignId, campaignId))
-    strategyLog = logs.find(l => l.role === 'planner' && l.message === '__strategy__')
-    if (strategyLog?.output) break
-    await new Promise(r => setTimeout(r, 1000))
-  }
-  if (!strategyLog?.output) throw new Error('No strategy found after 5 attempts — planner may not have completed')
-
-  const strategy = JSON.parse(strategyLog.output)
-
-  await updateCampaign(campaignId, { currentStep: 'writer', progress: 40 })
+  // ── Step 2: Writer ───────────────────────────────────────────────────────────
   await log(campaignId, 'writer', 'running', `Writing ${strategy.total_posts} post drafts…`)
 
   const drafts = await runWriter({
@@ -118,21 +58,7 @@ export async function runWriterStep(campaignId: string) {
   )
   await updateCampaign(campaignId, { currentStep: 'reviewer', progress: 65 })
 
-  chainStep('reviewer', campaignId)
-}
-
-export async function runReviewerStep(campaignId: string) {
-  const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId))
-  if (!campaign) throw new Error('Campaign not found')
-
-  // Retrieve drafts from writer log
-  const allLogs = await db.select().from(agentLogs).where(eq(agentLogs.campaignId, campaignId))
-  const writerLog = allLogs.find(l => l.role === 'writer' && l.status === 'done' && l.message.includes('drafts written'))
-  const drafts = writerLog?.output ? JSON.parse(writerLog.output) : []
-
-  if (drafts.length === 0) throw new Error('No drafts found — writer may not have completed')
-
-  await updateCampaign(campaignId, { currentStep: 'reviewer', progress: 70 })
+  // ── Step 3: Reviewer ─────────────────────────────────────────────────────────
   await log(campaignId, 'reviewer', 'running', 'Reviewing posts for brand voice and quality…')
 
   const reviewResult = await runReviewer({ drafts, campaignName: campaign.name })
@@ -141,31 +67,10 @@ export async function runReviewerStep(campaignId: string) {
     `Review complete: ${reviewResult.approved_count} approved, ${reviewResult.revised_count} revised.`,
     reviewResult.overall_feedback
   )
-  // Stay on reviewer step while finalize runs — no publisher step
   await updateCampaign(campaignId, { currentStep: 'reviewer', progress: 90 })
 
-  chainStep('finalize', campaignId)
-}
-
-export async function runFinalizeStep(campaignId: string) {
-  const allLogs = await db.select().from(agentLogs).where(eq(agentLogs.campaignId, campaignId))
-
-  // Get reviewer output, fall back to writer drafts
-  const reviewerLog = allLogs.find(l => l.role === 'reviewer' && l.status === 'done' && l.message.includes('Review complete'))
-  const writerLog = allLogs.find(l => l.role === 'writer' && l.status === 'done')
-
-  let sourcePosts
-  if (reviewerLog?.output) {
-    try {
-      const reviewResult = JSON.parse(reviewerLog.output)
-      sourcePosts = reviewResult.posts?.length > 0 ? reviewResult.posts : null
-    } catch { sourcePosts = null }
-  }
-  if (!sourcePosts && writerLog?.output) {
-    try { sourcePosts = JSON.parse(writerLog.output) } catch { sourcePosts = null }
-  }
-
-  if (!sourcePosts || sourcePosts.length === 0) throw new Error('No posts to save')
+  // ── Finalize: save posts ─────────────────────────────────────────────────────
+  const sourcePosts = reviewResult.posts?.length > 0 ? reviewResult.posts : drafts
 
   const today = new Date()
   const postRecords = sourcePosts.map((p: {
@@ -181,7 +86,7 @@ export async function runFinalizeStep(campaignId: string) {
       campaignId,
       title: p.title,
       content,
-      platform: p.platform as 'linkedin' | 'instagram' | 'facebook',
+      platform: p.platform.toLowerCase() as 'linkedin' | 'instagram' | 'facebook',
       status: 'scheduled' as const,
       scheduledAt: scheduledDate,
     }
@@ -191,13 +96,6 @@ export async function runFinalizeStep(campaignId: string) {
   await db.insert(posts).values(postRecords)
   await log(campaignId, 'reviewer', 'done', `${postRecords.length} posts ready — review and publish from the Posts tab.`)
   await updateCampaign(campaignId, { currentStep: null, progress: 100, status: 'active', postsCount: postRecords.length })
-}
 
-// ── Legacy: full pipeline in one call (use locally only, will timeout on Vercel Hobby) ───
-
-export async function runAgentPipeline(campaignId: string): Promise<{ postsCreated: number }> {
-  await runPlannerStep(campaignId)
-  // Note: runPlannerStep chains to writer automatically via chainStep — this legacy path
-  // is only used in tests where chaining is sufficient.
-  return { postsCreated: 0 }
+  return { postsCreated: postRecords.length }
 }

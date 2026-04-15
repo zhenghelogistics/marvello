@@ -83,7 +83,7 @@ Create a content strategy. Limit to a maximum of 3 posts total. Return JSON matc
 }`
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 1500,
     system: systemPrompt,
     tools: [
